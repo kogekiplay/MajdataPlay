@@ -163,11 +163,6 @@ namespace MajdataPlay.IO
         {
 
         }
-        ~BassAudioSample()
-        {
-            Dispose();
-        }
-
         public override void PlayOneShot()
         {
             ThrowIfDisposed();
@@ -222,6 +217,7 @@ namespace MajdataPlay.IO
             {
                 _dataHandle.Free();
             }
+            GC.SuppressFinalize(this);
         }
         public override ValueTask DisposeAsync()
         {
