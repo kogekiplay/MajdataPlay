@@ -174,8 +174,8 @@ namespace MajdataPlay.IO
             using (UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(encoded, AudioType.UNKNOWN))
             {
                 www.SetRequestHeader("User-Agent", MajEnv.HTTP_USER_AGENT);
-                www.SendWebRequest();
-                while (!www.isDone) ;
+                // TODO(H5 follow-up): convert this and the call chain (AudioManager.LoadMusic / LoadMusicFromUri) to async UniTask.
+                www.SendWebRequest().ToUniTask().GetAwaiter().GetResult();
                 var myClip = DownloadHandlerAudioClip.GetContent(www);
                 return new UnityAudioSample(myClip, gameObject)
                 {
