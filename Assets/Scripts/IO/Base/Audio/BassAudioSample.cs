@@ -257,7 +257,7 @@ namespace MajdataPlay.IO
                     gain = 1 / channelmax;
                 }
 
-                var sample = new BassAudioSample(decode, globalMixer, gain, speedChange)
+                var sample = new BassAudioSample(decode, globalMixer, gain, handle, speedChange)
                 {
                     CanSeek = true,
                 };
