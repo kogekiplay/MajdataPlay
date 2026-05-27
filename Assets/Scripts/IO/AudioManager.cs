@@ -92,10 +92,8 @@ namespace MajdataPlay.IO
                 {
                     return;
                 }
-                _isInited = true;
-            }
-            try
-            {
+                try
+                {
                 SFXFilePath = Path.Combine(MajEnv.AssetsPath, "SFX/");
                 VoiceFilePath = Path.Combine(MajEnv.AssetsPath, "Voice/");
 
@@ -288,10 +286,22 @@ namespace MajdataPlay.IO
                 }
                 ReadVolumeFromSettings();
                 GameManager.OnAppFocus += OnAppFocus;
-            }
-            catch (Exception e)
-            {
-                MajDebug.LogException(e);
+                    _isInited = true;
+                }
+                catch (Exception e)
+                {
+                    MajDebug.LogException(e);
+                    // Best-effort rollback of any partially-allocated native state
+                    // so a half-built AudioManager isn't left advertising itself as ready.
+#if UNITY_STANDALONE_WIN
+                    try { BassWasapi.Stop(); } catch { }
+                    try { BassWasapi.Free(); } catch { }
+                    try { BassAsio.Stop(); } catch { }
+                    try { BassAsio.Free(); } catch { }
+#endif
+                    try { Bass.Free(); } catch { }
+                    throw;
+                }
             }
         }
 #if UNITY_STANDALONE_WIN
