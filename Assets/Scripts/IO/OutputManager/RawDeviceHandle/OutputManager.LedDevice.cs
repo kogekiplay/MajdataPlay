@@ -152,6 +152,8 @@ namespace MajdataPlay.IO
                     MajDebug.LogWarning($"[Led]Cannot open {serialPortOptions.PortName}, using dummy lights");
                     return;
                 }
+                // Defense in depth: bound blocking Writes so a wedged port doesn't depend solely on cancellation (H4).
+                try { serial.WriteTimeout = 1000; } catch { /* platform may not support timeouts */ }
                 // Make blocking serial Write cancellable: disposing the port on cancellation
                 // unblocks the in-flight call with ObjectDisposedException (H4).
                 using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), serial);
