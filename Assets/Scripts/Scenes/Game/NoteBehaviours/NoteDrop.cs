@@ -228,7 +228,7 @@ namespace MajdataPlay.Scenes.Game.Notes.Behaviours
             AudioEffMana = Majdata<NoteAudioManager>.Instance!;
 
             USERSETTING_SLIDE_SKIPPING = gameInfo?.ChartSettings.SlideSkipping ?? Settings.Game.SlideSkipping;
-            USERSETTING_JUDGE_OFFSET_SEC = ((MajEnv.Settings?.Judge.JudgeOffset ?? 0) + (MajEnv.Settings?.Debug.DisplayOffset ?? 0)) * ((MajEnv.Settings?.Debug.OffsetUnit ?? OffsetUnitOption.Second) == OffsetUnitOption.Second ? 1 : FRAME_LENGTH_SEC);
+            USERSETTING_JUDGE_OFFSET_SEC = (MajEnv.Settings?.Judge.JudgeOffset ?? 0) * ((MajEnv.Settings?.Debug.OffsetUnit ?? OffsetUnitOption.Second) == OffsetUnitOption.Second ? 1 : FRAME_LENGTH_SEC);
             USERSETTING_TOUCHPANEL_OFFSET_SEC = (MajEnv.Settings?.Judge.TouchPanelOffset ?? 0) * ((MajEnv.Settings?.Debug.OffsetUnit ?? OffsetUnitOption.Second) == OffsetUnitOption.Second ? 1 : FRAME_LENGTH_SEC);
             USERSETTING_TAP_SCALE = MajEnv.Settings?.Display.TapScale ?? 1;
             USERSETTING_HOLD_SCALE = MajEnv.Settings?.Display.HoldScale ?? 1;
