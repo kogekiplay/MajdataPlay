@@ -190,6 +190,43 @@ namespace MajdataPlay
 #endif
         }
 
+        /// <summary>
+        /// Performs crash-recovery on a settings-style file before reading:
+        /// - If the file is missing but .bak (or completed .tmp) exists, restore.
+        /// - If the file is zero-length, restore from .bak.
+        /// - Cleans up any stale .tmp.
+        /// Safe to call when nothing needs recovery.
+        /// </summary>
+        static void RecoverSettingsFileIfNeeded(string path, string label)
+        {
+            var bak = path + ".bak";
+            var tmp = path + ".tmp";
+
+            if (!File.Exists(path))
+            {
+                if (File.Exists(bak))
+                {
+                    MajDebug.LogWarning($"{label} file at {path} missing; restoring from .bak.");
+                    File.Copy(bak, path, overwrite: false);
+                }
+                else if (File.Exists(tmp) && new FileInfo(tmp).Length > 0)
+                {
+                    MajDebug.LogWarning($"{label} file at {path} missing but .tmp exists; promoting.");
+                    File.Move(tmp, path);
+                }
+            }
+            else if (new FileInfo(path).Length == 0)
+            {
+                MajDebug.LogWarning($"{label} file at {path} is empty; restoring from .bak if available.");
+                if (File.Exists(bak)) File.Copy(bak, path, overwrite: true);
+            }
+
+            if (File.Exists(tmp))
+            {
+                try { File.Delete(tmp); } catch { /* not fatal */ }
+            }
+        }
+
         static MajEnv()
         {
             UnityWebRequestFactory.Timeout = TimeSpan.FromMilliseconds(HTTP_TIMEOUT_MS);
@@ -344,18 +381,9 @@ namespace MajdataPlay
             using (var buffer = new RentedList<ApiEndpoint>())
             {
                 using var apiEndpoints = new RentedList<ApiEndpoint>();
+                RecoverSettingsFileIfNeeded(SettingsPath, "Settings");
                 if (File.Exists(SettingsPath))
                 {
-                    if (new FileInfo(SettingsPath).Length == 0)
-                    {
-                        MajDebug.LogWarning($"Settings file at {SettingsPath} is empty; restoring from .bak if available.");
-                        var bakPath = SettingsPath + ".bak";
-                        if (File.Exists(bakPath))
-                        {
-                            try { File.Copy(bakPath, SettingsPath, overwrite: true); }
-                            catch (Exception ex) { MajDebug.LogError($"Failed to restore settings from .bak: {ex}"); }
-                        }
-                    }
                     var js = File.ReadAllText(SettingsPath);
                     GameSetting? setting;
 
@@ -477,19 +505,10 @@ namespace MajdataPlay
                                      .Where(x => x is not null)
                                      .ToArray();
             }
-                
+
+            RecoverSettingsFileIfNeeded(_runtimeConfigPath, "Runtime config");
             if (File.Exists(_runtimeConfigPath))
             {
-                if (new FileInfo(_runtimeConfigPath).Length == 0)
-                {
-                    MajDebug.LogWarning($"Runtime config file at {_runtimeConfigPath} is empty; restoring from .bak if available.");
-                    var bakPath = _runtimeConfigPath + ".bak";
-                    if (File.Exists(bakPath))
-                    {
-                        try { File.Copy(bakPath, _runtimeConfigPath, overwrite: true); }
-                        catch (Exception ex) { MajDebug.LogError($"Failed to restore runtime config from .bak: {ex}"); }
-                    }
-                }
                 var js = File.ReadAllText(_runtimeConfigPath);
                 RuntimeConfig? setting;
 
