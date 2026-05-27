@@ -279,6 +279,7 @@ namespace MajdataPlay.Scenes.Game.Buffers
                 }
                 if (_cursor <= 0)
                 {
+                    MajDebug.LogError($"NotePool.Bucket.Return: double-release detected for note {note?.GetType().Name ?? "null"}; bucket already empty.");
                     return;
                 }
                 _cursor--;
