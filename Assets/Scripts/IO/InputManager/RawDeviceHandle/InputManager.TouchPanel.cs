@@ -49,7 +49,7 @@ namespace MajdataPlay.IO
             #region Public Methods
             public static void Init()
             {
-                if(Interlocked.CompareExchange(ref _isInited, 0, 1) == 1)
+                if(Interlocked.CompareExchange(ref _isInited, 1, 0) != 0)
                 {
                     return;
                 }
