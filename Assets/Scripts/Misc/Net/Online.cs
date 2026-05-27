@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing.Printing;
@@ -57,11 +58,8 @@ namespace MajdataPlay.Net
         public const string API_POST_AUTH_REQUEST = "machine/auth/request";
         public const string API_POST_AUTH_REVOKE = "machine/auth/revoke";
 
-        static SpinLock _dictLock = new();
-        static SpinLock _cachedResponseLock = new();
-
-        readonly static Dictionary<OnlineSongDetail, CachedApiEndpointResponse> _cachedResponse = new();
-        readonly static Dictionary<ApiEndpoint, ApiEndpointStatistics> _endpointStatistics = new();
+        readonly static ConcurrentDictionary<OnlineSongDetail, CachedApiEndpointResponse> _cachedResponse = new();
+        readonly static ConcurrentDictionary<ApiEndpoint, ApiEndpointStatistics> _endpointStatistics = new();
 
         public static async ValueTask HeartbeatAsync(CancellationToken token = default)
         {
@@ -811,20 +809,7 @@ namespace MajdataPlay.Net
         }
         public static void ClearResponseCache()
         {
-            ref var @lock = ref _cachedResponseLock;
-            var isLocked = false;
-            try
-            {
-                @lock.Enter(ref isLocked);
-                _cachedResponse.Clear();
-            }
-            finally
-            {
-                if (isLocked)
-                {
-                    @lock.Exit();
-                }
-            }
+            _cachedResponse.Clear();
         }
         #region Internal method
         static async ValueTask<EndpointResponse<UserSummary>> GetUserInfoAsyncInternal(ApiEndpoint apiEndpoint, CancellationToken token = default)
@@ -1278,73 +1263,24 @@ namespace MajdataPlay.Net
 
         static ApiEndpointStatistics GetApiEndpointStatistic(ApiEndpoint endpoint)
         {
-            ref var @lock = ref _dictLock;
-            var isLocked = false;
-            try
+            return _endpointStatistics.GetOrAdd(endpoint, k => new ApiEndpointStatistics
             {
-                @lock.Enter(ref isLocked);
-                if (!_endpointStatistics.TryGetValue(endpoint, out var stats))
-                {
-                    stats = new ApiEndpointStatistics
-                    {
-                        Endpoint = endpoint
-                    };
-                    _endpointStatistics[endpoint] = stats;
-                }
-                return stats;
-            }
-            finally
-            {
-                if (isLocked)
-                {
-                    @lock.Exit();
-                }
-            }
+                Endpoint = k
+            });
         }
         static CachedApiEndpointResponse GetCachedResponse(OnlineSongDetail songDetail)
         {
-            ref var @lock = ref _cachedResponseLock;
-            var isLocked = false;
-            try
-            {
-                @lock.Enter(ref isLocked);
-                if (!_cachedResponse.TryGetValue(songDetail, out var cachedResponse))
-                {
-                    cachedResponse = new CachedApiEndpointResponse();
-                    _cachedResponse[songDetail] = cachedResponse;
-                }
-                return cachedResponse;
-            }
-            finally
-            {
-                if (isLocked)
-                {
-                    @lock.Exit();
-                }
-            }
+            return _cachedResponse.GetOrAdd(songDetail, _ => new CachedApiEndpointResponse());
         }
         static int GetAllApiEndpointStatistic(IList<ApiEndpointStatistics> buffer)
         {
-            ref var @lock = ref _dictLock;
-            var isLocked = false;
-            try
+            var i = 0;
+            foreach (var (_, statistics) in _endpointStatistics)
             {
-                @lock.Enter(ref isLocked);
-                var i = 0;
-                foreach (var (_, statistics) in _endpointStatistics)
-                {
-                    i++;
-                    buffer.Add(statistics);
-                }
-                return i;
+                i++;
+                buffer.Add(statistics);
             }
-            finally
-            {
-                if (isLocked)
-                {
-                    @lock.Exit();
-                }
-            }
+            return i;
         }
         #endregion
         class ReadOnlyApiEndpointStatistics
