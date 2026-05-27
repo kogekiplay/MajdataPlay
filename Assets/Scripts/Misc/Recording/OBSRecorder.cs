@@ -10,7 +10,6 @@ namespace MajdataPlay.Recording
     public class OBSRecorder : IRecorder
     {
         private WebSocket _webSocket = new("ws://127.0.0.1:4455");
-        private bool _disposed = false;
         string _name = "";
         string _obsOutPath = "";
         public bool IsConnected
@@ -25,6 +24,7 @@ namespace MajdataPlay.Recording
         }
         volatile bool _isConnected = false;
         volatile bool _isRecording = false;
+        volatile bool _disposed = false;
 
         private const string StartRecordMessage = @"{
                     ""op"": 6,
@@ -74,15 +74,19 @@ namespace MajdataPlay.Recording
         protected virtual void Dispose(bool disposing)
         {
             if (_disposed) return;
+            _disposed = true;
             if (disposing)
             {
-                Disconnect();
                 var ws = _webSocket;
                 _webSocket = null;
-                ws?.Close();
+                if (ws != null)
+                {
+                    ws.OnMessage -= OnMessageReceived;
+                    ws.Close();
+                }
+                IsConnected = false;
+                IsRecording = false;
             }
-
-            _disposed = true;
         }
 
         ~OBSRecorder() => Dispose(false);
@@ -100,6 +104,7 @@ namespace MajdataPlay.Recording
             if (ws is null) return;
             ws.Close();
             IsConnected = false;
+            IsRecording = false;
         }
 
         public void StartRecord()
@@ -157,8 +162,7 @@ namespace MajdataPlay.Recording
         }
         private void OnMessageReceived(object sender, MessageEventArgs e)
         {
-            var ws = _webSocket;
-            if (ws is null) return;
+            if (_disposed) return;
             try
             {
                 var message = Serializer.Json.Deserialize<ReceivedMessage>(e.Data);
@@ -207,24 +211,31 @@ namespace MajdataPlay.Recording
                                 MajDebug.LogInfo("[OBS] Moving video to game dir");
                                 var timestamp = $"{DateTime.Now:yyyy-MM-dd_HH_mm_ss}";
                                 var outputPath = Path.Combine(MajEnv.RecordOutputsPath, $"{_name}_{timestamp}.mp4");
-                                if (string.IsNullOrEmpty(_obsOutPath))
+                                try
                                 {
-                                    MajDebug.LogWarning("OBSRecorder: _obsOutPath was never set; skipping File.Move.");
+                                    if (string.IsNullOrEmpty(_obsOutPath))
+                                    {
+                                        MajDebug.LogWarning("OBSRecorder: _obsOutPath was never set; skipping File.Move.");
+                                    }
+                                    else
+                                    {
+                                        try
+                                        {
+                                            File.Move(_obsOutPath, outputPath);
+                                        }
+                                        catch (FileNotFoundException ex)
+                                        {
+                                            MajDebug.LogWarning($"OBSRecorder: OBS output file not found at {_obsOutPath}: {ex.Message}");
+                                        }
+                                        catch (IOException ex)
+                                        {
+                                            MajDebug.LogError($"OBSRecorder: File.Move failed: {ex}");
+                                        }
+                                    }
                                 }
-                                else
+                                finally
                                 {
-                                    try
-                                    {
-                                        File.Move(_obsOutPath, outputPath);
-                                    }
-                                    catch (FileNotFoundException ex)
-                                    {
-                                        MajDebug.LogWarning($"OBSRecorder: OBS output file not found at {_obsOutPath}: {ex.Message}");
-                                    }
-                                    catch (IOException ex)
-                                    {
-                                        MajDebug.LogError($"OBSRecorder: File.Move failed: {ex}");
-                                    }
+                                    _obsOutPath = string.Empty;
                                 }
                             }
 
