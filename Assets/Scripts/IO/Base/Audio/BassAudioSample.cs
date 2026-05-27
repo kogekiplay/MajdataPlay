@@ -254,7 +254,14 @@ namespace MajdataPlay.IO
                             channelmax = level;
                         }
                     }
-                    gain = 1 / channelmax;
+                    if (channelmax > 0)
+                    {
+                        gain = 1 / channelmax;
+                    }
+                    else
+                    {
+                        MajDebug.LogWarning("BassAudioSample: skipping normalization — channelmax is zero (silent input or decode error).");
+                    }
                 }
 
                 var sample = new BassAudioSample(decode, globalMixer, gain, handle, speedChange)
