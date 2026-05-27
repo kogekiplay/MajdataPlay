@@ -1,5 +1,48 @@
 <linker>
+  <!--
+    IL2CPP managed-code stripping (Medium/High) will delete types that are only
+    referenced via Newtonsoft.Json reflection. The editor (Mono) never strips,
+    so this only blows up on built players (mobile in particular). Every
+    namespace below has at least one type passed to JsonConvert /
+    JsonSerializer / Serializer.Json, or referenced by a [JsonConverter] attr.
+  -->
   <assembly fullname="Assembly-CSharp">
+    <!-- Settings, Settings.Runtime (incl. RuntimeConfig), SettingConfig, ListConfig, GameSetting, SongOrder -->
     <type fullname="MajdataPlay.Settings*" preserve="all"/>
+
+    <!-- JudgeInfo, JudgeDetail and their [JsonConverter] converters -->
+    <type fullname="MajdataPlay.Collections*" preserve="all"/>
+
+    <!-- OBSRecorder.ReceivedMessage and other recording-side DTOs -->
+    <type fullname="MajdataPlay.Recording*" preserve="all"/>
+
+    <!-- MajWsRequest* / MajWsResponse* / ViewStatus / ViewSummary (WS server payloads) -->
+    <type fullname="MajdataPlay.Scenes.View.Types*" preserve="all"/>
+
+    <!-- VersionDisplayer.GitHubTagInfo (nested) -->
+    <type fullname="MajdataPlay.Scenes.Title*" preserve="all"/>
+
+    <!-- DTOs in the flat MajdataPlay namespace (Assets/Scripts/Misc/Base/DataFormats/*) -->
+    <type fullname="MajdataPlay.MaiScore" preserve="all"/>
+    <type fullname="MajdataPlay.DanInfo" preserve="all"/>
+    <type fullname="MajdataPlay.MachineInfo" preserve="all"/>
+    <type fullname="MajdataPlay.GameResult" preserve="all"/>
+    <type fullname="MajdataPlay.SongScores" preserve="all"/>
+    <type fullname="MajdataPlay.SongDetail" preserve="all"/>
+    <type fullname="MajdataPlay.OnlineSongDetail" preserve="all"/>
+    <type fullname="MajdataPlay.ChartCommentSummary" preserve="all"/>
+    <type fullname="MajdataPlay.UserSummary" preserve="all"/>
+    <type fullname="MajdataPlay.MajNetAccountSongScore" preserve="all"/>
+    <type fullname="MajdataPlay.MajNetSongInteract" preserve="all"/>
+    <type fullname="MajdataPlay.MajNetSongScore" preserve="all"/>
+    <type fullname="MajdataPlay.MajNetSongScoreInfo" preserve="all"/>
+    <type fullname="MajdataPlay.MajnetSongDetail" preserve="all"/>
   </assembly>
+
+  <!-- Plugin assembly: ApiEndpoint, ApiRuntimeConfig, EndpointResponse, etc. -->
+  <assembly fullname="MajdataPlay.Net" preserve="all"/>
+
+  <!-- Newtonsoft.Json relies heavily on internal reflection (converters,
+       contract resolvers, attribute providers). Preserve wholesale. -->
+  <assembly fullname="Newtonsoft.Json" preserve="all"/>
 </linker>
