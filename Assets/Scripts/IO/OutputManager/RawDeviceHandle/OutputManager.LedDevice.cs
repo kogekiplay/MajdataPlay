@@ -152,6 +152,9 @@ namespace MajdataPlay.IO
                     MajDebug.LogWarning($"[Led]Cannot open {serialPortOptions.PortName}, using dummy lights");
                     return;
                 }
+                // Make blocking serial Write cancellable: disposing the port on cancellation
+                // unblocks the in-flight call with ObjectDisposedException (H4).
+                using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), serial);
                 while (true)
                 {
                     token.ThrowIfCancellationRequested();
@@ -180,6 +183,10 @@ namespace MajdataPlay.IO
                         {
                             serial.Write(updatePacket);
                         }
+                    }
+                    catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                    {
+                        break;
                     }
                     catch (Exception e)
                     {
@@ -300,6 +307,10 @@ namespace MajdataPlay.IO
                     IsConnected = true;
                     MajDebug.LogInfo($"[Led]Connected\nDevice: {device}");
                     stopwatch.Start();
+                    // Make blocking HID Write cancellable: disposing the stream on cancellation
+                    // unblocks the in-flight call with ObjectDisposedException (H4).
+                    try { hidStream.WriteTimeout = 1000; } catch (Exception) { }
+                    using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), hidStream);
                     while (true)
                     {
                         token.ThrowIfCancellationRequested();
@@ -334,6 +345,10 @@ namespace MajdataPlay.IO
                             }
                         }
                         catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
                         {
                             break;
                         }

@@ -598,6 +598,10 @@ namespace MajdataPlay.IO
                     IsConnected = true;
                     MajDebug.LogInfo($"[ButtonRing]Connected\nDevice: {device}");
                     stopwatch.Start();
+                    // Make blocking HID Read cancellable: disposing the stream on cancellation
+                    // unblocks the in-flight call with ObjectDisposedException (H4).
+                    try { hidStream.ReadTimeout = 1000; } catch (Exception) { }
+                    using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), hidStream);
                     while (true)
                     {
                         token.ThrowIfCancellationRequested();
@@ -645,6 +649,10 @@ namespace MajdataPlay.IO
                             }
                         }
                         catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
                         {
                             break;
                         }
@@ -711,6 +719,9 @@ namespace MajdataPlay.IO
                     _ioThreadSync.SignalReadReady();
                     var buffer = memory.Span;
                     stopwatch.Start();
+                    // Make blocking pipe Read cancellable: disposing the stream on cancellation
+                    // unblocks the in-flight call with ObjectDisposedException (H4).
+                    using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), pipeClientStream);
                     while (true)
                     {
                         token.ThrowIfCancellationRequested();
@@ -750,6 +761,10 @@ namespace MajdataPlay.IO
                             }
                         }
                         catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
                         {
                             break;
                         }

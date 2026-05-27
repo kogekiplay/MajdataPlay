@@ -354,6 +354,9 @@ namespace MajdataPlay.IO
                 var serial = new SerialPort(comPort, serialPortOptions.BaudRate);
                 serial.ReadTimeout = 2000;
                 serial.WriteTimeout = 2000;
+                // Make blocking serial Read/Write cancellable: disposing the port on cancellation
+                // unblocks the in-flight call with ObjectDisposedException (H4).
+                using var cancelReg = token.Register(static state => ((IDisposable)state!).Dispose(), serial);
             SERIAL_START:
                 try
                 {
@@ -420,6 +423,10 @@ namespace MajdataPlay.IO
                         {
                             IsConnected = false;
                             MajDebug.LogError($"[TouchPanel]Read timeout");
+                        }
+                        catch (ObjectDisposedException) when (token.IsCancellationRequested)
+                        {
+                            return;
                         }
                         catch (Exception e)
                         {
