@@ -1,6 +1,7 @@
 ﻿using MajdataPlay.Utils;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using WebSocketSharp;
 
@@ -12,8 +13,18 @@ namespace MajdataPlay.Recording
         private bool _disposed = false;
         string _name = "";
         string _obsOutPath = "";
-        public bool IsConnected { get; set; } = false;
-        public bool IsRecording { get; set; } = false;
+        public bool IsConnected
+        {
+            get => _isConnected;
+            private set => _isConnected = value;
+        }
+        public bool IsRecording
+        {
+            get => _isRecording;
+            private set => _isRecording = value;
+        }
+        volatile bool _isConnected = false;
+        volatile bool _isRecording = false;
 
         private const string StartRecordMessage = @"{
                     ""op"": 6,
@@ -66,7 +77,9 @@ namespace MajdataPlay.Recording
             if (disposing)
             {
                 Disconnect();
+                var ws = _webSocket;
                 _webSocket = null;
+                ws?.Close();
             }
 
             _disposed = true;
@@ -74,39 +87,65 @@ namespace MajdataPlay.Recording
 
         ~OBSRecorder() => Dispose(false);
 
-        private void Connect() => _webSocket.Connect();
+        private void Connect()
+        {
+            var ws = _webSocket;
+            if (ws is null) return;
+            ws.Connect();
+        }
 
         private void Disconnect()
         {
-            _webSocket.Close();
+            var ws = _webSocket;
+            if (ws is null) return;
+            ws.Close();
             IsConnected = false;
         }
 
-        public void StartRecord() => _webSocket.Send(StartRecordMessage);
-        public async Task StartRecordAsync()
+        public void StartRecord()
+        {
+            var ws = _webSocket;
+            if (ws is null) return;
+            ws.Send(StartRecordMessage);
+        }
+        public Task StartRecordAsync() => StartRecordAsync(default, 30);
+        public async Task StartRecordAsync(CancellationToken cancellationToken, int maxAttempts = 30)
         {
             try
             {
+                var attempts = 0;
                 while (!IsConnected)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (++attempts > maxAttempts)
+                        throw new OBSRecorderException($"OBS did not become ready after {maxAttempts} attempts.");
                     Authenticate();
-                    await Task.Delay(1000);
+                    await Task.Delay(1000, cancellationToken);
                 }
             }
-            catch
-            {
-                throw new OBSRecorderException();
-            }
+            catch (OperationCanceledException) { throw; }
+            catch (OBSRecorderException) { throw; }
+            catch (Exception ex) { throw new OBSRecorderException($"OBS connection failed: {ex.Message}", ex); }
 
-            await Task.Run(StartRecord);
+            await Task.Run(StartRecord, cancellationToken);
         }
-        public void StopRecord() => _webSocket.Send(StopRecordMessage);
+        public void StopRecord()
+        {
+            var ws = _webSocket;
+            if (ws is null) return;
+            ws.Send(StopRecordMessage);
+        }
         public async Task StopRecordAsync()
         {
             if (!IsConnected || !IsRecording) return;
             await Task.Run(StopRecord);
         }
-        private void Authenticate() => _webSocket.Send(AuthenticateMessage);
+        private void Authenticate()
+        {
+            var ws = _webSocket;
+            if (ws is null) return;
+            ws.Send(AuthenticateMessage);
+        }
         public void OnLateUpdate()
         {
 
@@ -118,6 +157,8 @@ namespace MajdataPlay.Recording
         }
         private void OnMessageReceived(object sender, MessageEventArgs e)
         {
+            var ws = _webSocket;
+            if (ws is null) return;
             try
             {
                 var message = Serializer.Json.Deserialize<ReceivedMessage>(e.Data);
@@ -166,7 +207,25 @@ namespace MajdataPlay.Recording
                                 MajDebug.LogInfo("[OBS] Moving video to game dir");
                                 var timestamp = $"{DateTime.Now:yyyy-MM-dd_HH_mm_ss}";
                                 var outputPath = Path.Combine(MajEnv.RecordOutputsPath, $"{_name}_{timestamp}.mp4");
-                                File.Move(_obsOutPath, outputPath);
+                                if (string.IsNullOrEmpty(_obsOutPath))
+                                {
+                                    MajDebug.LogWarning("OBSRecorder: _obsOutPath was never set; skipping File.Move.");
+                                }
+                                else
+                                {
+                                    try
+                                    {
+                                        File.Move(_obsOutPath, outputPath);
+                                    }
+                                    catch (FileNotFoundException ex)
+                                    {
+                                        MajDebug.LogWarning($"OBSRecorder: OBS output file not found at {_obsOutPath}: {ex.Message}");
+                                    }
+                                    catch (IOException ex)
+                                    {
+                                        MajDebug.LogError($"OBSRecorder: File.Move failed: {ex}");
+                                    }
+                                }
                             }
 
                             break;

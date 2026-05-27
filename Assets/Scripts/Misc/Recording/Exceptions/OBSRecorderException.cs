@@ -8,5 +8,15 @@ namespace MajdataPlay.Recording
         {
 
         }
+
+        public OBSRecorderException(string message) : base(message)
+        {
+
+        }
+
+        public OBSRecorderException(string message, Exception innerException) : base(message, innerException)
+        {
+
+        }
     }
 }
