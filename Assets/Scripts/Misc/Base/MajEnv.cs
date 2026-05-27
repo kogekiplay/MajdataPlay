@@ -152,7 +152,44 @@ namespace MajdataPlay
         };
 
         static string _runtimeConfigPath = string.Empty;
+        static readonly SemaphoreSlim _saveLock = new(1, 1);
         readonly static CancellationTokenSource _globalCTS = new();
+
+        static void AtomicWriteAllText(string path, string contents)
+        {
+            var tmp = path + ".tmp";
+            var bak = path + ".bak";
+
+            // Write to temp file; flush to disk.
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var sw = new StreamWriter(fs))
+            {
+                sw.Write(contents);
+                sw.Flush();
+                fs.Flush(flushToDisk: true);
+            }
+
+            // Replace path atomically; back up the old file to .bak if it exists.
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // File.Replace is unreliable on some Android filesystems; use a manual rename dance.
+            if (File.Exists(path))
+            {
+                if (File.Exists(bak)) File.Delete(bak);
+                File.Move(path, bak);
+            }
+            File.Move(tmp, path);
+#else
+            if (File.Exists(path))
+            {
+                File.Replace(tmp, path, bak);
+            }
+            else
+            {
+                File.Move(tmp, path);
+            }
+#endif
+        }
+
         static MajEnv()
         {
             UnityWebRequestFactory.Timeout = TimeSpan.FromMilliseconds(HTTP_TIMEOUT_MS);
@@ -309,6 +346,16 @@ namespace MajdataPlay
                 using var apiEndpoints = new RentedList<ApiEndpoint>();
                 if (File.Exists(SettingsPath))
                 {
+                    if (new FileInfo(SettingsPath).Length == 0)
+                    {
+                        MajDebug.LogWarning($"Settings file at {SettingsPath} is empty; restoring from .bak if available.");
+                        var bakPath = SettingsPath + ".bak";
+                        if (File.Exists(bakPath))
+                        {
+                            try { File.Copy(bakPath, SettingsPath, overwrite: true); }
+                            catch (Exception ex) { MajDebug.LogError($"Failed to restore settings from .bak: {ex}"); }
+                        }
+                    }
                     var js = File.ReadAllText(SettingsPath);
                     GameSetting? setting;
 
@@ -433,6 +480,16 @@ namespace MajdataPlay
                 
             if (File.Exists(_runtimeConfigPath))
             {
+                if (new FileInfo(_runtimeConfigPath).Length == 0)
+                {
+                    MajDebug.LogWarning($"Runtime config file at {_runtimeConfigPath} is empty; restoring from .bak if available.");
+                    var bakPath = _runtimeConfigPath + ".bak";
+                    if (File.Exists(bakPath))
+                    {
+                        try { File.Copy(bakPath, _runtimeConfigPath, overwrite: true); }
+                        catch (Exception ex) { MajDebug.LogError($"Failed to restore runtime config from .bak: {ex}"); }
+                    }
+                }
                 var js = File.ReadAllText(_runtimeConfigPath);
                 RuntimeConfig? setting;
 
@@ -596,8 +653,19 @@ namespace MajdataPlay
             var json = Serializer.Json.Serialize(Settings, UserJsonReaderOption);
             var json2 = Serializer.Json.Serialize(RuntimeConfig, UserJsonReaderOption);
 
-            File.WriteAllText(SettingsPath, json);
-            File.WriteAllText(_runtimeConfigPath, json2);
+            _saveLock.Wait();
+            try
+            {
+                try { AtomicWriteAllText(SettingsPath, json); }
+                catch (Exception ex) { MajDebug.LogError($"Failed to write settings: {ex}"); }
+
+                try { AtomicWriteAllText(_runtimeConfigPath, json2); }
+                catch (Exception ex) { MajDebug.LogError($"Failed to write runtime config: {ex}"); }
+            }
+            finally
+            {
+                _saveLock.Release();
+            }
         }
 
         static void CheckNoteSkinFolder()
