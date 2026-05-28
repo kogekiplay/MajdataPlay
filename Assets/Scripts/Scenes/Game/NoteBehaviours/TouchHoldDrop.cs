@@ -255,7 +255,7 @@ namespace MajdataPlay.Scenes.Game.Notes.Behaviours
                 _buttonPos = null;
             }
             _playerReleaseTimeSec = 0;
-            JudgableRange = new(JudgeTimingWithOffset - 0.15f, JudgeTimingWithOffset + 0.316667f, ContainsType.Closed);
+            JudgableRange = new(JudgeTimingWithOffset - 0.15f, JudgeTimingWithOffset + TOUCH_JUDGE_GOOD_AREA_MSEC / 1000f, ContainsType.Closed);
             _releaseTime = 0;
 
             if (Length <= TOUCH_HOLD_HEAD_IGNORE_LENGTH_SEC + TOUCH_HOLD_TAIL_IGNORE_LENGTH_SEC)
