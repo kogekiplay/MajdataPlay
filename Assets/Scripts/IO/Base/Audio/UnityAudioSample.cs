@@ -3,6 +3,7 @@ using MajdataPlay.Extensions;
 using MajdataPlay.Numerics;
 using MajdataPlay.Utils;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -174,8 +175,9 @@ namespace MajdataPlay.IO
             using (UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(encoded, AudioType.UNKNOWN))
             {
                 www.SetRequestHeader("User-Agent", MajEnv.HTTP_USER_AGENT);
-                // TODO(H5 follow-up): convert this and the call chain (AudioManager.LoadMusic / LoadMusicFromUri) to async UniTask.
-                www.SendWebRequest().ToUniTask().GetAwaiter().GetResult();
+                // TODO: migrate AudioManager.LoadMusic / LoadMusicFromUri to UniTask so this sync path can be removed; current Thread.Yield loop avoids both the previous CPU burn and the UniTask main-thread deadlock.
+                www.SendWebRequest();
+                while (!www.isDone) Thread.Yield();
                 var myClip = DownloadHandlerAudioClip.GetContent(www);
                 return new UnityAudioSample(myClip, gameObject)
                 {
