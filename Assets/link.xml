@@ -30,6 +30,7 @@
     <type fullname="MajdataPlay.SongScores" preserve="all"/>
     <type fullname="MajdataPlay.SongDetail" preserve="all"/>
     <type fullname="MajdataPlay.OnlineSongDetail" preserve="all"/>
+    <type fullname="MajdataPlay.Accurate" preserve="all"/>
     <type fullname="MajdataPlay.ChartCommentSummary" preserve="all"/>
     <type fullname="MajdataPlay.UserSummary" preserve="all"/>
     <type fullname="MajdataPlay.MajNetAccountSongScore" preserve="all"/>
