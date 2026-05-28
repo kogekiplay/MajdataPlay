@@ -85,11 +85,11 @@ namespace MajdataPlay.Scenes.Game.Notes.Controllers
             var settings = MajEnv.Settings;
             if (settings.Debug.OffsetUnit == OffsetUnitOption.Second)
             {
-                _answerOffsetSec = settings.Judge.AnswerOffset + settings.Debug.DisplayOffset;
+                _answerOffsetSec = settings.Judge.AnswerOffset;
             }
             else
             {
-                _answerOffsetSec = (settings.Judge.AnswerOffset + settings.Debug.DisplayOffset) * MajEnv.FRAME_LENGTH_SEC;
+                _answerOffsetSec = settings.Judge.AnswerOffset * MajEnv.FRAME_LENGTH_SEC;
             }
         }
         private void Start()
