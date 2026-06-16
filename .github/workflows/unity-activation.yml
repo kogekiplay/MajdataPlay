@@ -1,0 +1,31 @@
+name: Request Unity Activation File
+run-name: Request Unity activation file
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UNITY_VERSION: 2022.3.62f3
+
+jobs:
+  request-activation-file:
+    name: Request activation file
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Request Unity activation file
+        id: request-activation-file
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+
+      - name: Upload activation file
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-activation-file
+          path: ${{ steps.request-activation-file.outputs.filePath }}
+          if-no-files-found: error
+          retention-days: 7
