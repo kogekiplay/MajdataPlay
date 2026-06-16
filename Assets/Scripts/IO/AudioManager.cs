@@ -112,7 +112,6 @@ namespace MajdataPlay.IO
                                                                  .ToArray();
 
                 var backend = MajEnv.Settings.Audio.Backend;
-                var isBass = backend is (SoundBackendOption.BassSimple or SoundBackendOption.Asio or SoundBackendOption.Wasapi);
 #if UNITY_STANDALONE
                 var wasapiOptions = MajEnv.Settings.Audio.Wasapi;
                 var asioOptions = MajEnv.Settings.Audio.Asio;
@@ -145,6 +144,13 @@ namespace MajdataPlay.IO
                         break;
                 }
 #endif
+                backend = ResolveBackendForRuntime(backend, IsRunningUnderPlayCover());
+                if (MajEnv.Settings.Audio.Backend != backend)
+                {
+                    MajDebug.LogWarning($"Detected PlayCover runtime; audio backend changed to {backend}");
+                    MajEnv.Settings.Audio.Backend = backend;
+                }
+                var isBass = backend is (SoundBackendOption.BassSimple or SoundBackendOption.Asio or SoundBackendOption.Wasapi);
                 switch (backend)
                 {
 #if UNITY_STANDALONE_WIN
@@ -293,6 +299,35 @@ namespace MajdataPlay.IO
             {
                 MajDebug.LogException(e);
             }
+        }
+        internal static SoundBackendOption ResolveBackendForRuntime(SoundBackendOption backend, bool isPlayCoverRuntime)
+        {
+            if (isPlayCoverRuntime && backend == SoundBackendOption.BassSimple)
+            {
+                return SoundBackendOption.Unity;
+            }
+            return backend;
+        }
+        static bool IsRunningUnderPlayCover()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            var dataPath = Application.dataPath.Replace('\\', '/');
+            if (dataPath.Contains("/Library/Containers/io.playcover.PlayCover/Applications/"))
+            {
+                return true;
+            }
+
+            var appRoot = Directory.GetParent(dataPath);
+            if (appRoot is null)
+            {
+                return false;
+            }
+
+            var akInterfacePath = Path.Combine(appRoot.FullName, "PlugIns", "AKInterface.bundle");
+            return Directory.Exists(akInterfacePath);
+#else
+            return false;
+#endif
         }
 #if UNITY_STANDALONE_WIN
         [MonoPInvokeCallback(typeof(WasapiProcedure))]

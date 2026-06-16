@@ -1,0 +1,129 @@
+name: Build iOS IPA for PlayCover
+run-name: MajdataPlay iOS PlayCover build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+  UNITY_VERSION: 2022.3.62f3
+  CONFIGURATION: Release
+  TARGET_PLATFORM: iOS
+  BUILD_NAME: MajdataPlay
+
+jobs:
+  export-xcode:
+    name: Export Xcode project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Extract version from Unity project
+        run: |
+          VERSION=$(grep -m1 'bundleVersion:' ProjectSettings/ProjectSettings.asset | awk '{print $2}')
+          VERSION_WITH_HASH="${VERSION}-$(date +%Y%m%d)-${GITHUB_SHA::7}"
+          echo "BUNDLE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUNDLE_VERSION_WITH_HASH=$VERSION_WITH_HASH" >> "$GITHUB_ENV"
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ env.TARGET_PLATFORM }}-${{ hashFiles('ProjectSettings/ProjectVersion.txt', 'ProjectSettings/**', 'Packages/manifest.json', 'Packages/packages-lock.json') }}
+          restore-keys: |
+            Library-${{ runner.os }}-${{ env.TARGET_PLATFORM }}-
+
+      - name: Build Xcode project
+        uses: game-ci/unity-builder@v4
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: ${{ env.TARGET_PLATFORM }}
+          versioning: Custom
+          version: ${{ env.BUNDLE_VERSION_WITH_HASH }}
+          buildName: ${{ env.BUILD_NAME }}
+          buildsPath: ${{ env.CONFIGURATION }}
+
+      - name: Locate Xcode project
+        run: |
+          set -euo pipefail
+          find "${CONFIGURATION}" -maxdepth 5 -name '*.xcodeproj' -print
+          XCODEPROJ=$(find "${CONFIGURATION}" -maxdepth 5 -name '*.xcodeproj' -print -quit)
+          if [ -z "$XCODEPROJ" ]; then
+            echo "No Xcode project was generated."
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$XCODEPROJ")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found Xcode project at $XCODEPROJ"
+
+      - name: Upload Xcode project
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-project
+          path: ${{ env.PROJECT_DIR }}
+          if-no-files-found: error
+          retention-days: 7
+
+  package-ipa:
+    name: Package unsigned IPA
+    needs: export-xcode
+    runs-on: macos-latest
+
+    steps:
+      - name: Download Xcode project
+        uses: actions/download-artifact@v4
+        with:
+          name: xcode-project
+          path: xcode-project
+
+      - name: Build unsigned app
+        run: |
+          set -euo pipefail
+          XCODEPROJ=$(find xcode-project -maxdepth 3 -name '*.xcodeproj' -print -quit)
+          if [ -z "$XCODEPROJ" ]; then
+            echo "No Xcode project was downloaded."
+            exit 1
+          fi
+
+          xcodebuild \
+            -project "$XCODEPROJ" \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP=$(find build/DerivedData -path '*/Build/Products/Release-iphoneos/*.app' -type d -print -quit)
+          if [ -z "$APP" ]; then
+            echo "No built .app was found."
+            exit 1
+          fi
+
+          mkdir -p Payload out
+          cp -R "$APP" Payload/
+          /usr/bin/zip -qry "out/MajdataPlay-iOS-PlayCover-${GITHUB_SHA::7}.ipa" Payload
+          ls -la out
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MajdataPlay-iOS-PlayCover-ipa
+          path: out/*.ipa
+          if-no-files-found: error
+          retention-days: 7
