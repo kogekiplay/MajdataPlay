@@ -9,6 +9,7 @@ permissions:
 
 env:
   UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
   UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
   UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
   UNITY_VERSION: 2022.3.62f3
