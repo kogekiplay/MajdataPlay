@@ -32,9 +32,7 @@ jobs:
       - name: Extract version from Unity project
         run: |
           VERSION=$(grep -m1 'bundleVersion:' ProjectSettings/ProjectSettings.asset | awk '{print $2}')
-          VERSION_WITH_HASH="${VERSION}-$(date +%Y%m%d)-${GITHUB_SHA::7}"
           echo "BUNDLE_VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "BUNDLE_VERSION_WITH_HASH=$VERSION_WITH_HASH" >> "$GITHUB_ENV"
 
       - name: Cache Unity Library
         uses: actions/cache@v4
@@ -50,7 +48,7 @@ jobs:
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: ${{ env.TARGET_PLATFORM }}
           versioning: Custom
-          version: ${{ env.BUNDLE_VERSION_WITH_HASH }}
+          version: ${{ env.BUNDLE_VERSION }}
           buildName: ${{ env.BUILD_NAME }}
           buildsPath: ${{ env.CONFIGURATION }}
 
